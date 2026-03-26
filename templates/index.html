@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rajendra GVB - POS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        :root { --sidebar-bg: #0a3d62; --active-nav: #145c91; --body-bg: #f1f2f6; }
+        body { background-color: var(--body-bg); font-family: 'Segoe UI', sans-serif; margin-bottom: 80px; overflow-x: hidden; }
+
+        /* Navigation */
+        .sidebar { width: 250px; background: var(--sidebar-bg); height: 100vh; position: fixed; color: white; z-index: 1000; display: block; }
+        .nav-link { color: white; padding: 15px 20px; font-weight: 600; cursor: pointer; border-left: 4px solid transparent; text-decoration: none; display: block; }
+        .nav-link:hover, .nav-link.active { background: var(--active-nav); border-left: 4px solid #3498db; }
+        .mobile-nav { display: none; position: fixed; bottom: 0; width: 100%; background: var(--sidebar-bg); color: white; z-index: 2000; justify-content: space-around; padding: 10px 0; }
+        .mobile-nav-item { text-align: center; color: white; text-decoration: none; font-size: 0.75rem; opacity: 0.7; cursor: pointer; }
+        .mobile-nav-item.active { opacity: 1; font-weight: bold; }
+
+        .main-content { margin-left: 250px; padding: 25px; transition: 0.3s; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.05); background: white; margin-bottom: 15px; }
+
+        /* Search & Suggestions */
+        .search-container { position: relative; display: flex; gap: 10px; align-items: center; }
+        #itemNameSearch { height: 55px; border-radius: 12px; border: 2px solid #e1e8ed; padding-left: 15px; font-size: 1.1rem; flex-grow: 1; }
+        .suggestions-container { position: absolute; width: calc(100% - 100px); background: white; z-index: 1050; top: 60px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); max-height: 250px; overflow-y: auto; display: none; border: 1px solid #ddd; }
+        .suggestion-item { padding: 12px 20px; border-bottom: 1px solid #f1f2f6; cursor: pointer; display: flex; justify-content: space-between; }
+        .suggestion-item:hover { background: #f8f9fa; color: var(--sidebar-bg); }
+
+        .mic-btn { height: 55px; border-radius: 12px; background: var(--sidebar-bg); color: white; border: none; padding: 0 20px; font-weight: bold; }
+        .mic-active { background: #e74c3c !important; animation: pulse 1.5s infinite; }
+
+        .total-bar { position: sticky; top: 0; z-index: 100; background: #333; color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+        .modal-content { border-radius: 20px; border: none; }
+        .modal-header { background: var(--sidebar-bg); color: white; }
+        .qty-input { font-size: 1.8rem; font-weight: bold; text-align: center; color: var(--sidebar-bg); }
+
+        @media (max-width: 992px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; width: 100%; padding: 15px; }
+            .mobile-nav { display: flex; }
+            .suggestions-container { width: 100%; top: 120px; }
+            .search-container { flex-direction: column; align-items: stretch; }
+            .mic-btn { width: 100%; }
+        }
+
+        /* PRINT STYLES - Matches PDF layout exactly */
+        #printReceiptArea { display: none; }
+        @media print {
+            html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: white; }
+            body * { visibility: hidden; }
+            #printReceiptArea, #printReceiptArea * { visibility: visible; }
+            #printReceiptArea { 
+                display: block; position: absolute; left: 0; top: 0; width: 80mm; max-width: 100%; 
+                padding: 10mm; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #000; 
+                background: white; line-height: 1.3;
+            }
+            .receipt-header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 8px; padding-bottom: 8px; }
+            .receipt-header h2 { margin: 0; font-size: 14px; font-weight: bold; letter-spacing: 0.5px; }
+            .receipt-header h4 { margin: 3px 0; font-size: 11px; font-weight: 600; }
+            .receipt-header p { margin: 2px 0; font-size: 10px; }
+            .receipt-info { text-align: center; margin-bottom: 8px; padding: 4px 0; }
+            .receipt-info .receipt-meta { font-size: 10px; margin: 2px 0; }
+            .receipt-summary { width: 100%; border-collapse: collapse; margin: 8px 0; background: #f0f0f0; }
+            .receipt-summary th { background: #e0e0e0; padding: 4px 6px; text-align: center; font-size: 10px; font-weight: bold; }
+            .receipt-summary td { padding: 4px 6px; text-align: center; font-size: 10px; }
+            .receipt-summary td:first-child { text-align: left; }
+            .receipt-summary td:last-child { text-align: right; }
+            .receipt-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+            .receipt-table thead { background: #e8e8e8; }
+            .receipt-table th { 
+                background: #e8e8e8; padding: 5px 4px; text-align: left; font-size: 10px; 
+                font-weight: bold; border-bottom: 1px solid #999;
+            }
+            .receipt-table td { padding: 4px 4px; font-size: 10px; border-bottom: 1px solid #eee; }
+            .receipt-table td:nth-child(2), .receipt-table th:nth-child(2) { text-align: right; }
+            .receipt-table td:nth-child(3), .receipt-table th:nth-child(3) { text-align: center; }
+            .receipt-table td:nth-child(4), .receipt-table th:nth-child(4) { text-align: right; }
+            .item-name { font-weight: 500; }
+            .item-category { font-size: 9px; color: #666; margin-left: 8px; }
+            .receipt-table tfoot tr { background: white; }
+            .receipt-table tfoot td { padding: 5px 4px; font-size: 10px; }
+            .border-top { border-top: 1px dashed #000; }
+            .border-bottom { border-bottom: 1px solid #000; padding-top: 6px; }
+            .total-row { font-weight: bold; border-top: 1px solid #000; background: white; }
+            .receipt-footer { text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000; font-weight: bold; font-size: 10px; }
+            @page { size: 80mm auto; margin: 2mm; }
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="p-4 text-center"><h3 class="fw-bold">Rajendra GVB</h3></div>
+        <div class="nav flex-column mt-3">
+            <a class="nav-link active" onclick="showTab('billing', this)">📝 BILLING</a>
+            <a class="nav-link opacity-75" onclick="showTab('inventory', this)">📦 INVENTORY</a>
+            <a class="nav-link opacity-75" onclick="showTab('reports', this)">📊 REPORTS</a>
+        </div>
+    </div>
+
+    <div class="mobile-nav">
+        <div class="mobile-nav-item active" onclick="showTab('billing', this)"><span>📝</span><br>Billing</div>
+        <div class="mobile-nav-item" onclick="showTab('inventory', this)"><span>📦</span><br>Stock</div>
+        <div class="mobile-nav-item" onclick="showTab('reports', this)"><span>📊</span><br>Reports</div>
+    </div>
+
+    <div class="main-content">
+        <div id="billing" class="tab-content">
+            <h2 class="fw-bold mb-4">Point of Sale</h2>
+            <div class="card p-3 mb-3">
+                <div class="search-container">
+                    <input type="text" id="itemNameSearch" class="form-control" placeholder="Search or press Enter for Voice..." oninput="autoSearch(this.value)" autocomplete="off">
+                    <button class="mic-btn" id="micBtn" onclick="startVoice()">🎙️ SPEAK</button>
+                    <div id="suggestions" class="suggestions-container"></div>
+                </div>
+            </div>
+            <div class="total-bar d-flex justify-content-between align-items-center shadow-lg">
+                <h3 class="m-0 fw-bold" id="grandTotalLabel">TOTAL: ₹0.000</h3>
+                <button class="btn btn-success btn-lg fw-bold px-4" onclick="checkout()">CHECKOUT ➤</button>
+            </div>
+            <div class="card"><div class="table-container">
+                <table class="table table-hover align-middle mb-0" style="min-width: 600px;">
+                    <thead><tr><th>Product (Unit)</th><th class="text-center">Qty</th><th class="text-center">Rate</th><th class="text-center">Total</th><th class="text-center">Actions</th></tr></thead>
+                    <tbody id="cartList"></tbody>
+                </table>
+            </div></div>
+        </div>
+
+        <div id="inventory" class="tab-content" style="display:none">
+            <h2 class="fw-bold mb-3">Inventory</h2>
+            <div class="card p-3 mb-3">
+                <input type="text" id="stockSearchInput" class="form-control mb-3" placeholder="🔍 Search Stock..." oninput="filterStock(this.value)">
+                <input type="file" id="excelFile" hidden onchange="importExcel()">
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('excelFile').click()">📤 Import CSV</button>
+            </div>
+            <div id="stockList"></div>
+        </div>
+
+        <div id="reports" class="tab-content text-center" style="display:none">
+            <h2 class="fw-bold mb-3">Reports</h2>
+            <div class="card p-5">
+                <h6 class="text-muted small fw-bold">TOTAL NET PROFIT</h6>
+                <h1 id="repProfit" class="display-3 text-success fw-bold">₹0.00</h1>
+                <button class="btn btn-outline-primary btn-sm mt-3" onclick="loadReports()">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="printReceiptArea">
+        <div class="receipt-header">
+            <div style="text-align: center; margin-bottom: 6px; font-size: 18px;">🏛️</div>
+            <h2>RAJENDRA GRUH VASTU BHANDAR</h2>
+            <p>7350614455</p>
+        </div>
+
+        <table class="receipt-summary">
+            <thead>
+                <tr><th>P Mode</th><th>I#</th><th>U#</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Cash</td>
+                    <td id="prTotalItems">0</td>
+                    <td id="prTotalUnits">0.0</td>
+                    <td id="prTotalAmount">₹0.000</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="text-align: center; font-size: 10px; margin: 8px 0;">
+            <div><strong>Receipt#</strong> <span id="prReceiptNo">RGVB-0</span></div>
+            <div><strong>Date:</strong> <span id="prDate">--</span></div>
+        </div>
+
+        <table class="receipt-table border-top">
+            <thead class="border-bottom">
+                <tr>
+                    <th>Name</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody id="prItemsList"></tbody>
+            <tfoot>
+                <tr class="border-top">
+                    <td colspan="3" style="text-align: right; padding-right: 4px;"><strong>Subtotal</strong></td>
+                    <td style="text-align: right;"><strong id="prSubtotal">₹0.000</strong></td>
+                </tr>
+                <tr class="total-row">
+                    <td colspan="3" style="text-align: right; padding-right: 4px;"><strong>Grand Total</strong></td>
+                    <td style="text-align: right;"><strong id="prGrandTotal">₹0.000</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div class="receipt-footer">Thank You, Visit Again.</div>
+    </div>
+
+    <div class="modal fade" id="itemModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered mx-3">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title fw-bold" id="modalItemTitle">Confirm</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <label class="small fw-bold text-muted d-block text-center mb-2">QUANTITY (<span id="modalUnitLabel">unit</span>)</label>
+                    <input type="number" id="modalQty" class="form-control qty-input" value="1" onfocus="this.select()">
+                    <label class="small fw-bold text-muted mt-3 mb-2">RATE</label>
+                    <input type="number" id="modalRate" class="form-control fw-bold" step="0.01">
+                </div>
+                <div class="modal-footer p-3"><button class="btn btn-primary w-100 py-3 fw-bold" id="modalSubmitBtn" onclick="addItemFromModal()">ADD TO BILL</button></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cart = []; let fullStockData = []; let tempItemData = null; let itemModal; let editingIndex = null;
+        const mrMap = {'एक':1,'दोन':2,'तीन':3,'चार':4,'पाच':5,'सहा':6,'सात':7,'आठ':8,'नऊ':9,'दहा':10};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            itemModal = new bootstrap.Modal(document.getElementById('itemModal'));
+            const sIn = document.getElementById('itemNameSearch');
+
+            sIn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (sIn.value.trim() === "") startVoice();
+                    else { const f = document.querySelector('.suggestion-item'); if(f) f.click(); }
+                }
+            });
+            document.getElementById('modalQty').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); document.getElementById('modalRate').focus(); document.getElementById('modalRate').select(); }
+            });
+            document.getElementById('modalRate').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); addItemFromModal(); }
+            });
+            document.addEventListener('click', (e) => { if (!sIn.contains(e.target)) document.getElementById('suggestions').style.display = 'none'; });
+        });
+
+        function showTab(id, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.getElementById(id).style.display = 'block';
+            document.querySelectorAll('.mobile-nav-item, .nav-link').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            if(id === 'inventory') loadStock();
+            if(id === 'reports') loadReports();
+        }
+
+        function autoSearch(val) {
+            const suggBox = document.getElementById('suggestions');
+            if (val.length < 1) { suggBox.style.display = 'none'; return; }
+            fetch(`/api/search_items?name=${val.trim()}`).then(r => r.json()).then(data => {
+                if (data.length > 0) {
+                    suggBox.innerHTML = '';
+                    data.forEach((item, idx) => {
+                        const div = document.createElement('div');
+                        div.className = 'suggestion-item';
+                        if(idx === 0) div.style.backgroundColor = "#f0f8ff";
+                        div.innerHTML = `<span><b>${item.name.toUpperCase()}</b> <small class="text-muted">(${item.unit})</small></span><span>₹${item.s_rate.toFixed(3)}</span>`;
+                        div.onclick = () => selectItem(item);
+                        suggBox.appendChild(div);
+                    });
+                    suggBox.style.display = 'block';
+                } else suggBox.style.display = 'none';
+            });
+        }
+
+        function selectItem(item) {
+            editingIndex = null;
+            document.getElementById('suggestions').style.display = 'none';
+            document.getElementById('itemNameSearch').value = '';
+            tempItemData = item;
+            document.getElementById('modalItemTitle').innerText = item.name.toUpperCase();
+            document.getElementById('modalUnitLabel').innerText = item.unit || 'pcs';
+            document.getElementById('modalSubmitBtn').innerText = "ADD TO BILL";
+            document.getElementById('modalRate').value = item.s_rate;
+            document.getElementById('modalQty').value = 1;
+            itemModal.show();
+            setTimeout(() => { document.getElementById('modalQty').focus(); document.getElementById('modalQty').select(); }, 500);
+        }
+
+        function editCartItem(idx) {
+            editingIndex = idx;
+            const item = cart[idx];
+            tempItemData = { name: item.name, p_rate: item.p_rate, unit: item.unit };
+            document.getElementById('modalItemTitle').innerText = "EDIT: " + item.name.toUpperCase();
+            document.getElementById('modalUnitLabel').innerText = item.unit || 'pcs';
+            document.getElementById('modalSubmitBtn').innerText = "UPDATE ITEM";
+            document.getElementById('modalQty').value = item.qty;
+            document.getElementById('modalRate').value = item.rate;
+            itemModal.show();
+            setTimeout(() => { document.getElementById('modalQty').focus(); document.getElementById('modalQty').select(); }, 500);
+        }
+
+        function addItemFromModal() {
+            const q = parseFloat(document.getElementById('modalQty').value);
+            const r = parseFloat(document.getElementById('modalRate').value);
+            if(q > 0) {
+                const profit = (r - tempItemData.p_rate) * q;
+                const entry = { name: tempItemData.name, unit: tempItemData.unit, qty: q, rate: r, total: q*r, profit: profit, p_rate: tempItemData.p_rate };
+                if(editingIndex !== null) cart[editingIndex] = entry;
+                else cart.push(entry);
+                renderCart();
+                itemModal.hide();
+                document.getElementById('itemNameSearch').focus();
+            }
+        }
+
+        function renderCart() {
+            const list = document.getElementById('cartList'); list.innerHTML = ''; let total = 0;
+            cart.forEach((item, i) => {
+                total += item.total;
+                list.innerHTML += `<tr><td class="fw-bold">${item.name.toUpperCase()} <small class="text-muted">(${item.unit || 'pcs'})</small></td><td class="text-center">${item.qty}</td><td class="text-center">₹${item.rate.toFixed(3)}</td><td class="text-center fw-bold text-primary">₹${item.total.toFixed(3)}</td><td class="text-center"><button class="btn btn-sm btn-outline-primary me-1" onclick="editCartItem(${i})">Edit</button><button class="btn btn-sm btn-outline-danger" onclick="cart.splice(${i},1);renderCart()">X</button></td></tr>`;
+            });
+            document.getElementById('grandTotalLabel').innerText = `TOTAL: ₹${total.toFixed(3)}`;
+        }
+
+        function startVoice() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) { alert("Mic blocked!"); return; }
+            const rec = new SpeechRec();
+            rec.lang = 'mr-IN';
+            rec.onstart = () => document.getElementById('micBtn').classList.add('mic-active');
+            rec.onend = () => document.getElementById('micBtn').classList.remove('mic-active');
+            rec.onresult = (e) => {
+                let trans = e.results[0][0].transcript.toLowerCase().trim().replace(/[,.]/g, "");
+                document.getElementById('itemNameSearch').value = trans;
+                let regex = /([\u0900-\u097Fa-zA-Z\s]+?)\s*(\d+|[०-९]+|एक|दोन|तीन|चार|पाच|सहा|सात|आठ|नऊ|दहा)/;
+                let match = trans.match(regex);
+                if (match) {
+                    let name = match[1].trim();
+                    let qtyRaw = match[2].trim();
+                    let qty = mrMap[qtyRaw] || trans.replace(/[०-९]/g, (d) => '०१२३४५६७८९'.indexOf(d)).match(/\d+/);
+                    if (Array.isArray(qty)) qty = qty[0];
+                    fetch(`/api/search_items?name=${name}`).then(r => r.json()).then(data => {
+                        if (data.length > 0) {
+                            selectItem(data[0]);
+                            setTimeout(() => { 
+                                document.getElementById('modalQty').value = qty; 
+                                document.getElementById('modalRate').focus(); 
+                                document.getElementById('modalRate').select(); 
+                            }, 600);
+                        } else { autoSearch(name); }
+                    });
+                } else { autoSearch(trans); }
+            };
+            rec.start();
+        }
+
+        function checkout() {
+            if(!cart.length) return;
+            fetch('/api/checkout', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({cart: cart}) })
+            .then(r => r.json()).then(d => {
+                if(d.success) {
+                    try {
+                        // backend returns receipt_no (snake_case) and not receiptNo
+                        preparePrint(d.receipt_no || d.receiptNo, d.date);
+                        // Force print invocation with a tiny delay so DOM updates and browser can treat it as a user action path
+                        setTimeout(() => {
+                            window.print();
+                            cart = []; renderCart();
+                        }, 50);
+                    } catch (err) {
+                        alert("Print Error: " + err.message);
+                    }
+                } else {
+                    alert("Checkout failed: " + (d.error || "Unknown error"));
+                }
+            }).catch(err => {
+                alert("Checkout fetch error: " + err.message);
+            });
+        }
+
+        function preparePrint(receiptNo, date) {
+            const prReceiptNoEl = document.getElementById('prReceiptNo');
+            const prDateEl = document.getElementById('prDate');
+            if (prReceiptNoEl) prReceiptNoEl.innerText = receiptNo;
+            if (prDateEl) prDateEl.innerText = date;
+
+            const list = document.getElementById('prItemsList');
+            if (!list) return;
+            
+            list.innerHTML = '';
+            let totalQty = 0; let totalAmt = 0;
+            cart.forEach(item => {
+                totalQty += item.qty;
+                totalAmt += item.total;
+                const unitDisplay = item.unit ? `<small class="item-category">${item.unit}</small>` : '';
+                list.innerHTML += `<tr>
+                    <td><span class="item-name">${item.name.toUpperCase()}</span>${unitDisplay}</td>
+                    <td style="text-align:right">₹${item.rate.toFixed(3)}</td>
+                    <td style="text-align:center">${item.qty}</td>
+                    <td style="text-align:right">₹${item.total.toFixed(3)}</td>
+                </tr>`;
+            });
+            
+            document.getElementById('prTotalItems').innerText = cart.length;
+            document.getElementById('prTotalUnits').innerText = totalQty.toFixed(1);
+            document.getElementById('prTotalAmount').innerText = '₹' + totalAmt.toFixed(3);
+            document.getElementById('prSubtotal').innerText = '₹' + totalAmt.toFixed(3);
+            document.getElementById('prGrandTotal').innerText = '₹' + totalAmt.toFixed(3);
+        }
+
+        function loadStock() { fetch('/api/inventory').then(r => r.json()).then(d => { fullStockData = d; renderStockList(d); }); }
+        function filterStock(q) { renderStockList(fullStockData.filter(i => i.name.toLowerCase().includes(q.toLowerCase()))); }
+        function renderStockList(data) { document.getElementById('stockList').innerHTML = data.map(i => `<div class="card p-3"><div class="d-flex justify-content-between"><b class="text-uppercase">${i.name} (${i.unit})</b><span class="badge bg-light text-dark">Stock: ${i.stock}</span></div><div class="small text-muted mt-1">Sale: ₹${i.s_rate.toFixed(3)}</div></div>`).join(''); }
+        function importExcel() { const file = document.getElementById('excelFile').files[0]; const formData = new FormData(); formData.append('file', file); fetch('/api/upload_inventory', { method: 'POST', body: formData }).then(() => loadStock()); }
+        function loadReports() { fetch('/api/reports').then(r => r.json()).then(d => document.getElementById('repProfit').innerText = `₹${d.total_profit.toFixed(2)}`); }
+    </script>
+</body>
+</html>
