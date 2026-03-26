@@ -8,8 +8,8 @@ app = Flask(__name__)
 
 # --- SUPABASE CONFIGURATION ---
 # Get these from: Supabase Dashboard > Project Settings > API
-SUPABASE_URL = "https://your-project-id.supabase.co"
-SUPABASE_KEY = "your-anon-public-key"
+SUPABASE_URL = "https://eseyswkjamgbnoetzeah.supabase.co"
+SUPABASE_KEY = "sb_publishable_j0t5UqUziRZfBTUKVC3jZA_VLoYJFK6"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.route('/')
