@@ -6,11 +6,18 @@ from supabase import create_client, Client
 
 app = Flask(__name__)
 
-# --- SUPABASE CONFIGURATION ---
-# Get these from: Supabase Dashboard > Project Settings > API
-SUPABASE_URL = "https://eseyswkjamgbnoetzeah.supabase.co"
-SUPABASE_KEY = "sb_publishable_j0t5UqUziRZfBTUKVC3jZA_VLoYJFK6"
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# --- SECURE CLOUD CONFIGURATION ---
+# This looks for the keys you added to the Vercel Dashboard
+SUPABASE_URL = os.environ.get("https://eseyswkjamgbnoetzeah.supabase.co")
+SUPABASE_KEY = os.environ.get("sb_publishable_j0t5UqUziRZfBTUKVC3jZA_VLoYJFK6")
+
+# Safety check: if keys are missing, the app will show a clear error in logs
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("ERROR: Supabase Environment Variables are missing!")
+else:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ... (Keep the rest of your @app.route logic exactly as it was)
 
 @app.route('/')
 def home():
