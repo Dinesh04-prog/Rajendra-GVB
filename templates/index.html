@@ -430,10 +430,23 @@
             document.getElementById('prGrandTotal').innerText = '₹' + totalAmt.toFixed(3);
         }
 
-        function loadStock() { fetch('/api/inventory').then(r => r.json()).then(d => { fullStockData = d; renderStockList(d); }); }
+        async function loadStock() { fetch('/api/inventory').then(r => r.json()).then(d => { fullStockData = d; renderStockList(d); }); }
         function filterStock(q) { renderStockList(fullStockData.filter(i => i.name.toLowerCase().includes(q.toLowerCase()))); }
-        function renderStockList(data) { document.getElementById('stockList').innerHTML = data.map(i => `<div class="card p-3"><div class="d-flex justify-content-between"><b class="text-uppercase">${i.name} (${i.unit})</b><span class="badge bg-light text-dark">Stock: ${i.stock}</span></div><div class="small text-muted mt-1">Sale: ₹${i.s_rate.toFixed(3)}</div></div>`).join(''); }
-        function importExcel() { const file = document.getElementById('excelFile').files[0]; const formData = new FormData(); formData.append('file', file); fetch('/api/upload_inventory', { method: 'POST', body: formData }).then(() => loadStock()); }
+        function renderStockList(data) { document.getElementById('stockList').innerHTML = data.map(i => `<div class="card p-3"><div class="d-flex justify-content-between"><b class="text-uppercase">${i.name} (${i.unit})</b><span class="badge bg-light text-dark">Stock: ${i.stock}</span></div><div class="small text-muted mt-1">Sale: ₹${Number(i.s_rate).toFixed(3)}</div></div>`).join(''); }
+        async function importExcel() {
+            const file = document.getElementById('excelFile').files[0];
+            if (!file) { alert('Please choose a CSV file to import.'); return; }
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload_inventory', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.success) {
+                alert('Import failed: ' + (data.message || 'Unknown error'));
+                return;
+            }
+            alert('Inventory imported successfully.');
+            loadStock();
+        }
         function loadReports() { fetch('/api/reports').then(r => r.json()).then(d => document.getElementById('repProfit').innerText = `₹${d.total_profit.toFixed(2)}`); }
     </script>
 </body>

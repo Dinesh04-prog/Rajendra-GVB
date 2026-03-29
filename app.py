@@ -96,22 +96,43 @@ def get_item():
         return jsonify({"success": True, "name": item['name'], "unit": item['unit'], "s_rate": item['s_rate'], "p_rate": item['p_rate']})
     return jsonify({"success": False})
 
+from io import BytesIO
+
 @app.route('/api/upload_inventory', methods=['POST'])
 def upload_inventory():
-    file = request.files['file']
+    file = request.files.get('file')
+    if not file:
+        return jsonify({"success": False, "message": "No file uploaded."})
+
     try:
-        df = pd.read_csv(file) if file.filename.endswith('.csv') else pd.read_excel(file)
+        content = file.read()
+        filename = file.filename.lower()
+        if filename.endswith('.csv'):
+            df = pd.read_csv(BytesIO(content), encoding='utf-8-sig')
+        else:
+            df = pd.read_excel(BytesIO(content))
+
         df.columns = [c.lower().strip() for c in df.columns]
+        required_columns = {'name', 'unit', 'p_rate', 's_rate', 'stock'}
+        if not required_columns.issubset(set(df.columns)):
+            return jsonify({"success": False, "message": "CSV must include name, unit, p_rate, s_rate, stock columns."})
+
         items_to_upsert = []
         for _, row in df.iterrows():
-            u = str(row['unit']).strip().lower() if 'unit' in df.columns and pd.notna(row['unit']) else 'pcs'
+            u = str(row['unit']).strip().lower() if pd.notna(row['unit']) else 'pcs'
             items_to_upsert.append({
-                "name": str(row['name']).lower().strip(),
-                "unit": u, "p_rate": row['p_rate'], "s_rate": row['s_rate'], "stock": row['stock']
+                "name": str(row['name']).strip(),
+                "unit": u,
+                "p_rate": float(row['p_rate']) if pd.notna(row['p_rate']) else 0,
+                "s_rate": float(row['s_rate']) if pd.notna(row['s_rate']) else 0,
+                "stock": int(row['stock']) if pd.notna(row['stock']) else 0
             })
-        supabase.table("inventory").upsert(items_to_upsert, on_conflict="name").execute()
+
+        response = supabase.table("inventory").upsert(items_to_upsert, on_conflict="name").execute()
+        if response.error:
+            return jsonify({"success": False, "message": str(response.error)})
         return jsonify({"success": True})
-    except Exception as e: 
+    except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
 @app.route('/api/inventory', methods=['GET'])
