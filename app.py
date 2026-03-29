@@ -152,8 +152,17 @@ def upload_inventory():
         items_to_upsert = list(items_by_name.values())
 
         response = supabase.table("inventory").upsert(items_to_upsert, on_conflict="name").execute()
-        if response.error:
-            return jsonify({"success": False, "message": str(response.error)})
+        error = None
+        if isinstance(response, dict):
+            error = response.get("error")
+        else:
+            error = getattr(response, "error", None)
+            if error is None and hasattr(response, "status_code"):
+                status = getattr(response, "status_code")
+                if status and status >= 400:
+                    error = getattr(response, "status_message", None) or str(response)
+        if error:
+            return jsonify({"success": False, "message": str(error)})
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
