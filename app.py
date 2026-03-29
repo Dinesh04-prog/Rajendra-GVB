@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 import os
 from supabase import create_client, Client
-import google.generativeai as genai
+from google import genai
 
 app = Flask(__name__)
 
@@ -20,10 +20,9 @@ else:
 
 if not GEMINI_KEY:
     print("CRITICAL ERROR: GEMINI_API_KEY is missing!")
+    genai_client = None
 else:
-    genai.configure(api_key=GEMINI_KEY)
-    # FIXED: Using 'gemini-1.5-flash-latest' to resolve the 404 version error
-    ai_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    genai_client = genai.Client(api_key=GEMINI_KEY)
 
 @app.route('/')
 def home():
@@ -45,11 +44,13 @@ def assistant():
     Price Logic: "Santoor 142 wala" -> name="santoor", price=142.
     """
     try:
-        # FIXED: Added 'response_mime_type' to force pure JSON output
-        # This prevents the "backtick" error that freezes the search bar
-        response = ai_model.generate_content(
-            prompt, 
-            generation_config={"response_mime_type": "application/json"}
+        if not genai_client:
+            return jsonify({"action": "ERROR", "message": "GEMINI_API_KEY is not configured."})
+
+        response = genai_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
         )
         return response.text
     except Exception as e:
