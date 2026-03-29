@@ -275,6 +275,10 @@
                                 document.getElementById('modalQty').focus();
                                 document.getElementById('modalQty').select();
                             }, 500);
+                        } else if (items.length === 0 && transcript && transcript.trim() !== '') {
+                            // If AI returned an English item but the input was Marathi, retry using the original Marathi text.
+                            document.getElementById('itemNameSearch').value = transcript;
+                            autoSearch(transcript);
                         } else {
                             // Multiple or none found - show search results list
                             document.getElementById('itemNameSearch').value = cmd.name;

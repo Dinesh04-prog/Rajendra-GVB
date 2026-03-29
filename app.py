@@ -36,12 +36,15 @@ def assistant():
     prompt = f"""
     You are the manager's assistant for 'Rajendra GVB' Grocery.
     Analyze this request: "{user_text}"
-    
+
     Goal: Extract intent and details into JSON.
     Actions: SEARCH, ADD_NEW, NAVIGATE, DELETE, CHECKOUT.
 
+    If the request is in Marathi, preserve the item name exactly as written in Marathi. Do not translate Marathi item names to English.
+    Example: "हळद 50 वाला" -> name="हळद", price=50.
+    Example: "Santoor 142 wala" -> name="santoor", price=142.
+
     Unit Conversions: 'Pota'=50, 'Chatak'=0.05, 'Pav'=0.25, 'Adheli'=0.5.
-    Price Logic: "Santoor 142 wala" -> name="santoor", price=142.
     """
     try:
         if not genai_client:
