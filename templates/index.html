@@ -224,10 +224,30 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ text: transcript })
                 });
-                const cmd = await res.json();
+                const rawCmd = await res.json();
                 micBtn.innerHTML = originalText;
 
-                console.log("Gemini Output:", cmd);
+                const aiItem = rawCmd?.item || {};
+                const extractString = (value, fallback = '') => {
+                    if (value === undefined || value === null) return fallback;
+                    return String(value).trim();
+                };
+                const extractNumber = (value, fallback = 1) => {
+                    const n = Number(value);
+                    return Number.isFinite(n) && n > 0 ? n : fallback;
+                };
+
+                const cmd = {
+                    ...rawCmd,
+                    action: extractString(rawCmd.action || rawCmd.intent || rawCmd.intent_name || rawCmd.intentType).toUpperCase().replace(/\s+/g, '_'),
+                    name: extractString(rawCmd.name || aiItem.name || aiItem.item_name || aiItem.itemName || aiItem.value || aiItem.title || ''),
+                    qty: extractNumber(rawCmd.qty || rawCmd.quantity || aiItem.quantity || aiItem.qty || rawCmd.count, 1),
+                    unit: extractString(rawCmd.unit || aiItem.unit || 'pcs', 'pcs'),
+                    price: rawCmd.price || aiItem.price || rawCmd.s_rate || rawCmd.p_rate || aiItem.s_rate || aiItem.p_rate || null,
+                    target: extractString(rawCmd.target || rawCmd.navigateTo || rawCmd.destination || rawCmd.location || '')
+                };
+
+                console.log("Gemini Output:", rawCmd, cmd);
 
                 switch(cmd.action) {
                     case 'NAVIGATE':
@@ -237,11 +257,13 @@
                         break;
                     
                     case 'DELETE':
-                        const idx = cart.findIndex(i => i.name.toLowerCase().includes(cmd.name.toLowerCase()));
-                        if(idx > -1) { 
-                            cart.splice(idx, 1); 
-                            renderCart(); 
-                            alert("Removed " + cmd.name + " from bill.");
+                        if (cmd.name) {
+                            const idx = cart.findIndex(i => i.name.toLowerCase().includes(cmd.name.toLowerCase()));
+                            if(idx > -1) { 
+                                cart.splice(idx, 1); 
+                                renderCart(); 
+                                alert("Removed " + cmd.name + " from bill.");
+                            }
                         }
                         break;
 
@@ -250,25 +272,23 @@
                         break;
 
                     case 'ADD_NEW':
-                        // Opens modal to create a non-existing item
-                        tempItemData = { name: cmd.name, s_rate: 0, p_rate: 0, unit: 'pcs' };
-                        document.getElementById('modalItemTitle').innerText = "NEW: " + cmd.name.toUpperCase();
+                        const newName = cmd.name || rawCmd.item?.name || rawCmd.item?.item_name || rawCmd.item?.itemName || '';
+                        tempItemData = { name: newName, s_rate: 0, p_rate: 0, unit: cmd.unit };
+                        document.getElementById('modalItemTitle').innerText = "NEW: " + (newName ? newName.toUpperCase() : 'ITEM');
                         document.getElementById('modalRate').value = 0;
                         document.getElementById('modalQty').value = cmd.qty || 1;
                         document.getElementById('modalSubmitBtn').innerText = "SAVE NEW ITEM";
-                        // Note: Saving new items requires an inventory route, but for now we open the modal
                         itemModal.show();
                         break;
 
                     case 'SEARCH':
                     case 'BILL_ITEM':
-                        // Smart Search with price/mrp filter
+                        const nameToSearch = cmd.name || transcript || '';
                         const priceParam = (cmd.price && cmd.price !== 'null') ? `&price=${cmd.price}` : '';
-                        const searchRes = await fetch(`/api/search_items?name=${cmd.name}${priceParam}`);
+                        const searchRes = await fetch(`/api/search_items?name=${encodeURIComponent(nameToSearch)}${priceParam}`);
                         const items = await searchRes.json();
                         
                         if (items.length === 1) {
-                            // Exact match (e.g., Santoor 142 wala) - Pick it!
                             selectItem(items[0]);
                             setTimeout(() => { 
                                 document.getElementById('modalQty').value = cmd.qty || 1; 
@@ -276,13 +296,11 @@
                                 document.getElementById('modalQty').select();
                             }, 500);
                         } else if (items.length === 0 && transcript && transcript.trim() !== '') {
-                            // If AI returned an English item but the input was Marathi, retry using the original Marathi text.
                             document.getElementById('itemNameSearch').value = transcript;
                             autoSearch(transcript);
                         } else {
-                            // Multiple or none found - show search results list
-                            document.getElementById('itemNameSearch').value = cmd.name;
-                            autoSearch(cmd.name);
+                            document.getElementById('itemNameSearch').value = nameToSearch;
+                            autoSearch(nameToSearch);
                         }
                         break;
                 }
