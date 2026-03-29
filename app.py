@@ -14,21 +14,22 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 # Safety checks for Environment Variables
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("ERROR: Supabase Environment Variables are missing!")
+    print("CRITICAL ERROR: Supabase Environment Variables are missing!")
 else:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 if not GEMINI_KEY:
-    print("ERROR: GEMINI_API_KEY is missing!")
+    print("CRITICAL ERROR: GEMINI_API_KEY is missing!")
 else:
     genai.configure(api_key=GEMINI_KEY)
-    ai_model = genai.GenerativeModel('gemini-1.5-flash')
+    # UPDATED: Using 'gemini-1.5-flash-latest' to resolve the 404 version error
+    ai_model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# --- NEW: SMART AI ASSISTANT ROUTE ---
+# --- SMART AI ASSISTANT ROUTE ---
 @app.route('/api/assistant', methods=['POST'])
 def assistant():
     user_text = request.json.get('text', '').lower().strip()
@@ -46,7 +47,7 @@ def assistant():
     - DELETE: Remove an item from the current bill.
     - CHECKOUT: Print and finish sale.
 
-    Unit Conversions to remember:
+    Unit Conversions:
     - 'Pota' (पोटा/पोटं) = 50 qty
     - 'Chatak' (चटाक) = 0.05 qty
     - 'Pav' (पाव) = 0.25 qty
@@ -55,7 +56,7 @@ def assistant():
     Price Logic:
     - If user says "Santoor 142 wala", name is "santoor" and price is 142.
     
-    Return ONLY JSON:
+    Return ONLY RAW JSON. No markdown, no backticks, no extra text.
     {{
         "action": "ACTION_NAME",
         "name": "extracted product name",
@@ -66,17 +67,18 @@ def assistant():
     """
     try:
         response = ai_model.generate_content(prompt)
-        # Cleaning AI output to ensure valid JSON
-        clean_json = response.text.strip().replace('```json', '').replace('```', '')
+        # Ensure the response is clean JSON
+        clean_json = response.text.strip().replace('```json', '').replace('```', '').replace('\n', '')
         return clean_json
     except Exception as e:
-        return jsonify({"action": "ERROR", "message": str(e)})
+        print(f"Gemini API Error: {str(e)}")
+        return jsonify({"action": "ERROR", "message": "Model connection failed. Try again."})
 
-# --- UPDATED: SMART SEARCH API (With Price Filtering) ---
+# --- SMART SEARCH API (With Price Filtering) ---
 @app.route('/api/search_items', methods=['GET'])
 def search_items():
     name = request.args.get('name', '').lower().strip()
-    price_filter = request.args.get('price', None) # New: Get price from AI
+    price_filter = request.args.get('price', None)
     
     if not name: return jsonify([])
     
@@ -87,12 +89,13 @@ def search_items():
     if price_filter and price_filter != 'null':
         try:
             query = query.eq("s_rate", float(price_filter))
-        except: pass
+        except: 
+            pass
         
     response = query.execute()
     items = response.data
     
-    # Maintains your original ORDER BY logic
+    # Maintains your original ORDER BY priority ranking
     items.sort(key=lambda x: (
         x['name'].lower() != name, 
         not x['name'].lower().startswith(name), 
