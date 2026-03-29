@@ -2,3 +2,4 @@ flask
 supabase
 pandas
 openpyxl
+google-generativeai
