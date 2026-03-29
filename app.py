@@ -133,16 +133,23 @@ def upload_inventory():
         if not required_columns.issubset(set(df.columns)):
             return jsonify({"success": False, "message": "CSV must include name, unit, p_rate, s_rate, stock columns."})
 
-        items_to_upsert = []
+        items_by_name = {}
         for _, row in df.iterrows():
+            if pd.isna(row['name']):
+                continue
+            item_name = str(row['name']).strip()
+            if not item_name:
+                continue
             u = str(row['unit']).strip().lower() if pd.notna(row['unit']) else 'pcs'
-            items_to_upsert.append({
-                "name": str(row['name']).strip(),
+            items_by_name[item_name] = {
+                "name": item_name,
                 "unit": u,
                 "p_rate": float(row['p_rate']) if pd.notna(row['p_rate']) else 0,
                 "s_rate": float(row['s_rate']) if pd.notna(row['s_rate']) else 0,
                 "stock": int(row['stock']) if pd.notna(row['stock']) else 0
-            })
+            }
+
+        items_to_upsert = list(items_by_name.values())
 
         response = supabase.table("inventory").upsert(items_to_upsert, on_conflict="name").execute()
         if response.error:
