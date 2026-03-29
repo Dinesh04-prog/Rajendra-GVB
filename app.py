@@ -108,7 +108,15 @@ def upload_inventory():
         content = file.read()
         filename = file.filename.lower()
         if filename.endswith('.csv'):
-            df = pd.read_csv(BytesIO(content), encoding='utf-8-sig')
+            df = None
+            for encoding in ['utf-8-sig', 'utf-8', 'cp1252', 'latin-1']:
+                try:
+                    df = pd.read_csv(BytesIO(content), encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if df is None:
+                return jsonify({"success": False, "message": "CSV encoding not supported. Please save the file as UTF-8 or ANSI."})
         else:
             df = pd.read_excel(BytesIO(content))
 
