@@ -22,59 +22,41 @@ if not GEMINI_KEY:
     print("CRITICAL ERROR: GEMINI_API_KEY is missing!")
 else:
     genai.configure(api_key=GEMINI_KEY)
-    # UPDATED: Using 'gemini-1.5-flash-latest' to resolve the 404 version error
+    # FIXED: Using 'gemini-1.5-flash-latest' to resolve the 404 version error
     ai_model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# --- SMART AI ASSISTANT ROUTE ---
+# --- FIXED: SMART AI ASSISTANT ROUTE ---
 @app.route('/api/assistant', methods=['POST'])
 def assistant():
     user_text = request.json.get('text', '').lower().strip()
     
-    # System Instructions for Gemini
     prompt = f"""
     You are the manager's assistant for 'Rajendra GVB' Grocery.
     Analyze this request: "{user_text}"
     
     Goal: Extract intent and details into JSON.
-    Actions available: 
-    - SEARCH: Find item to bill.
-    - ADD_NEW: Create product in inventory.
-    - NAVIGATE: Switch to 'billing', 'inventory', or 'reports'.
-    - DELETE: Remove an item from the current bill.
-    - CHECKOUT: Print and finish sale.
+    Actions: SEARCH, ADD_NEW, NAVIGATE, DELETE, CHECKOUT.
 
-    Unit Conversions:
-    - 'Pota' (पोटा/पोटं) = 50 qty
-    - 'Chatak' (चटाक) = 0.05 qty
-    - 'Pav' (पाव) = 0.25 qty
-    - 'Adheli' (अधेली) = 0.5 qty
-
-    Price Logic:
-    - If user says "Santoor 142 wala", name is "santoor" and price is 142.
-    
-    Return ONLY RAW JSON. No markdown, no backticks, no extra text.
-    {{
-        "action": "ACTION_NAME",
-        "name": "extracted product name",
-        "price": number_or_null,
-        "qty": number_or_1,
-        "target": "tab_name"
-    }}
+    Unit Conversions: 'Pota'=50, 'Chatak'=0.05, 'Pav'=0.25, 'Adheli'=0.5.
+    Price Logic: "Santoor 142 wala" -> name="santoor", price=142.
     """
     try:
-        response = ai_model.generate_content(prompt)
-        # Ensure the response is clean JSON
-        clean_json = response.text.strip().replace('```json', '').replace('```', '').replace('\n', '')
-        return clean_json
+        # FIXED: Added 'response_mime_type' to force pure JSON output
+        # This prevents the "backtick" error that freezes the search bar
+        response = ai_model.generate_content(
+            prompt, 
+            generation_config={"response_mime_type": "application/json"}
+        )
+        return response.text
     except Exception as e:
         print(f"Gemini API Error: {str(e)}")
-        return jsonify({"action": "ERROR", "message": "Model connection failed. Try again."})
+        return jsonify({"action": "ERROR", "message": str(e)})
 
-# --- SMART SEARCH API (With Price Filtering) ---
+# --- MAINTAINED: SMART SEARCH API ---
 @app.route('/api/search_items', methods=['GET'])
 def search_items():
     name = request.args.get('name', '').lower().strip()
@@ -82,20 +64,16 @@ def search_items():
     
     if not name: return jsonify([])
     
-    # Build query
     query = supabase.table("inventory").select("*").ilike("name", f"%{name}%")
     
-    # Apply "142 wala" filter if AI detected a price
     if price_filter and price_filter != 'null':
         try:
             query = query.eq("s_rate", float(price_filter))
-        except: 
-            pass
+        except: pass
         
     response = query.execute()
     items = response.data
     
-    # Maintains your original ORDER BY priority ranking
     items.sort(key=lambda x: (
         x['name'].lower() != name, 
         not x['name'].lower().startswith(name), 
@@ -104,7 +82,7 @@ def search_items():
     
     return jsonify(items[:10])
 
-# --- ORIGINAL GET ITEM ---
+# --- MAINTAINED: ORIGINAL FEATURES ---
 @app.route('/api/get_item', methods=['GET'])
 def get_item():
     name = request.args.get('name', '').lower().strip()
@@ -114,7 +92,6 @@ def get_item():
         return jsonify({"success": True, "name": item['name'], "unit": item['unit'], "s_rate": item['s_rate'], "p_rate": item['p_rate']})
     return jsonify({"success": False})
 
-# --- ORIGINAL BULK UPLOAD ---
 @app.route('/api/upload_inventory', methods=['POST'])
 def upload_inventory():
     file = request.files['file']
@@ -133,13 +110,11 @@ def upload_inventory():
     except Exception as e: 
         return jsonify({"success": False, "message": str(e)})
 
-# --- ORIGINAL INVENTORY LIST ---
 @app.route('/api/inventory', methods=['GET'])
 def inventory_list():
     response = supabase.table("inventory").select("*").execute()
     return jsonify(response.data)
 
-# --- ORIGINAL CHECKOUT WITH RGVB-X LOGIC ---
 @app.route('/api/checkout', methods=['POST'])
 def checkout():
     data = request.json
@@ -168,12 +143,10 @@ def checkout():
     except Exception as e: 
         return jsonify({"success": False, "error": str(e)})
 
-# --- ORIGINAL REPORTS ---
 @app.route('/api/reports')
 def get_reports():
     response = supabase.table("sales").select("profit").execute()
     p = sum(row['profit'] for row in response.data) if response.data else 0
     return jsonify({"total_profit": round(p, 2)})
 
-# Required for Vercel
 app = app
